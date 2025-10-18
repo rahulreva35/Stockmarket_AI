@@ -40,12 +40,10 @@ process_url_clicked = st.sidebar.button("Process URLs")
 
 main_placeholder = st.empty()
 
-
-
 if process_url_clicked:
     # load URLs
-    loader = UnstructuredURLLoader(urls=urls)
-    # loader = TextLoader("test_context.txt")
+    # loader = UnstructuredURLLoader(urls=urls)
+    loader = TextLoader("test_context.txt")
     main_placeholder.text("Loading data from URLs...")
     data = loader.load()
     print(data)
