@@ -1,24 +1,19 @@
 import os
-import streamlit as st
 import pickle
-import pandas as pd
-# from langchain import OpenAI
+
 import langchain
+import pandas as pd
+import streamlit as st
+from dotenv import load_dotenv
 from langchain import HuggingFacePipeline
 from langchain.chains import RetrievalQA
-from langchain.document_loaders import TextLoader
-from langchain.text_splitter import RecursiveCharacterTextSplitter
-from langchain.document_loaders import UnstructuredURLLoader
-# from langchain.embeddings import OpenAIEmbeddings
-from langchain.embeddings import HuggingFaceEmbeddings
-from langchain.vectorstores import FAISS
-from dotenv import load_dotenv
-from langchain_core.prompts import ChatPromptTemplate
 from langchain.chains import create_retrieval_chain
 from langchain.chains.combine_documents import create_stuff_documents_chain
-
-# https://www.moneycontrol.com/news/business/markets/market-corrects-post-rbi-ups-inflation-forecast-icrr-bet-on-these-top-10-rate-sensitive-stocks-ideas-11142611.html#goog_rewarded
-# what percentage The Monetary Policy Committee (MPC) unanimously decided to hold the repo rate at ?
+from langchain.document_loaders import TextLoader
+from langchain.embeddings import HuggingFaceEmbeddings
+from langchain.text_splitter import RecursiveCharacterTextSplitter
+from langchain.vectorstores import FAISS
+from langchain_core.prompts import ChatPromptTemplate
 
 load_dotenv()
 
@@ -30,7 +25,21 @@ file_path = "vectorstore.pkl"
 
 # llm = OpenAI(model_name="gpt-3.5-turbo", temperature=0)
 
-llm = HuggingFacePipeline.from_model_id(model_id="distilgpt2", task="text-generation")
+# llm = HuggingFacePipeline.from_model_id(model_id="distilgpt2", task="text-generation")
+
+# llm = HuggingFacePipeline.from_model_id(
+#     model_id="distilgpt2",
+#     task="text-generation",
+#     model_kwargs={"temperature": 1, "max_length": 1024},
+#     pipeline_kwargs={"max_new_tokens": 500},
+#     device=-1  # CPU (use 0 for GPU if available)
+# )
+
+llm = HuggingFacePipeline.from_model_id(
+    model_id="gpt2",
+    task="text-generation",
+    pipeline_kwargs={"max_new_tokens": 10},
+)
 
 for i in range(1):
     url = st.sidebar.text_input(f"URL {i + 1}")
@@ -49,16 +58,15 @@ if process_url_clicked:
     print(data)
 
     # Split Data
-    text_splitter = RecursiveCharacterTextSplitter(chunk_size=200, separators=['\n\n', '\n', '.'])
+    text_splitter = RecursiveCharacterTextSplitter(chunk_size=200, separators=['\n\n', '\n', '.', ' '])
     main_placeholder.text("Splitting data into chunks...")
     docs = text_splitter.split_documents(data)
 
-    # create Embeddings
+    # # Tokenizes and embeddings
     embeddings = HuggingFaceEmbeddings(
-        model_name="sentence-transformers/all-MiniLM-L6-v2",
-        model_kwargs={"device": "cpu"}  # Optional: Skip normalization to save compute
+        model_name="sentence-transformers/all-mpnet-base-v2",
+        model_kwargs={"device": "cpu"}, encode_kwargs={"normalize_embeddings": False}
     )
-    # embeddings = OpenAIEmbeddings()
     vectorstore = FAISS.from_documents(docs, embeddings)
     main_placeholder.text("Creating vector store...")
 
@@ -90,19 +98,13 @@ if query:
                 "Doc ID": st.column_config.TextColumn(width="small"),
                 "Content": st.column_config.TextColumn(width="large")
             }, use_container_width=True)
-            # st.table(df)
 
             # Run chain and display answer
             result = chain.invoke({"input": query})
 
             st.header("Answer")
             st.subheader(result['context'][0].page_content)
-            # st.subheader(result["answer"])
 
-            # # Display source documents
-            # sources = result.get("sources", "")
-            # if sources:
-            #     st.subheader("Source Documents")
-            #     sources_list = sources.split("\n")
-            #     for source in sources_list:
-            #         st.write(source)
+            # st.header("Extra")
+            # for index in range(len(result['context'])):
+            #     st.subheader(result['context'][index].page_content)

@@ -10,7 +10,6 @@ dependencies = [
     "langchain-community>=0.3.31",
     "libmagic>=1.0",
     "notebook>=7.4.7",
-    "openai>=2.5.0",
     "python-dotenv>=1.1.1",
     "python-magic>=0.4.27",
     "sentence-transformers>=5.1.1",
