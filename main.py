@@ -3,12 +3,12 @@ import pickle
 
 import streamlit as st
 from dotenv import load_dotenv
-from langchain import HuggingFacePipeline
+from langchain_community.llms.huggingface_pipeline import HuggingFacePipeline
 from langchain.chains import RetrievalQA
 from langchain.chains import create_retrieval_chain
-from langchain.embeddings import HuggingFaceEmbeddings
+from langchain_community.embeddings import HuggingFaceEmbeddings
 from langchain.text_splitter import RecursiveCharacterTextSplitter
-from langchain.vectorstores import FAISS
+from langchain_community.vectorstores import FAISS
 from langchain_community.document_loaders import UnstructuredURLLoader
 from langchain_core.prompts import PromptTemplate
 
@@ -19,24 +19,6 @@ st.title("New research Tool")
 st.sidebar.title("News article URL")
 urls = []
 file_path = "vectorstore.pkl"
-
-# llm = OpenAI(model_name="gpt-3.5-turbo", temperature=0)
-
-# llm = HuggingFacePipeline.from_model_id(model_id="distilgpt2", task="text-generation")
-
-# llm = HuggingFacePipeline.from_model_id(
-#     model_id="distilgpt2",
-#     task="text-generation",
-#     model_kwargs={"temperature": 1, "max_length": 1024},
-#     pipeline_kwargs={"max_new_tokens": 500},
-#     device=-1  # CPU (use 0 for GPU if available)
-# )
-
-# llm = HuggingFacePipeline.from_model_id(
-#     model_id="gpt2",
-#     task="text-generation",
-#     pipeline_kwargs={"max_new_tokens": 10},
-# )
 
 llm = HuggingFacePipeline.from_model_id(
     model_id="google/flan-t5-base",
