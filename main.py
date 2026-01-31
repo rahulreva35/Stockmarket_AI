@@ -1,19 +1,16 @@
 import os
 import pickle
 
-import langchain
-import pandas as pd
 import streamlit as st
 from dotenv import load_dotenv
 from langchain import HuggingFacePipeline
 from langchain.chains import RetrievalQA
 from langchain.chains import create_retrieval_chain
-from langchain.chains.combine_documents import create_stuff_documents_chain
-from langchain.document_loaders import TextLoader
 from langchain.embeddings import HuggingFaceEmbeddings
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain.vectorstores import FAISS
-from langchain_core.prompts import ChatPromptTemplate
+from langchain_community.document_loaders import UnstructuredURLLoader
+from langchain_core.prompts import PromptTemplate
 
 load_dotenv()
 
@@ -35,10 +32,17 @@ file_path = "vectorstore.pkl"
 #     device=-1  # CPU (use 0 for GPU if available)
 # )
 
+# llm = HuggingFacePipeline.from_model_id(
+#     model_id="gpt2",
+#     task="text-generation",
+#     pipeline_kwargs={"max_new_tokens": 10},
+# )
+
 llm = HuggingFacePipeline.from_model_id(
-    model_id="gpt2",
-    task="text-generation",
-    pipeline_kwargs={"max_new_tokens": 10},
+    model_id="google/flan-t5-base",
+    task="text2text-generation",
+    pipeline_kwargs={"max_new_tokens": 256}
+    # model_kwargs={"temperature": 0}
 )
 
 for i in range(1):
@@ -51,8 +55,8 @@ main_placeholder = st.empty()
 
 if process_url_clicked:
     # load URLs
-    # loader = UnstructuredURLLoader(urls=urls)
-    loader = TextLoader("test_context.txt")
+    loader = UnstructuredURLLoader(urls=urls)
+    # loader = TextLoader("test_context.txt")
     main_placeholder.text("Loading data from URLs...")
     data = loader.load()
     print(data)
@@ -64,8 +68,8 @@ if process_url_clicked:
 
     # # Tokenizes and embeddings
     embeddings = HuggingFaceEmbeddings(
-        model_name="sentence-transformers/all-mpnet-base-v2",
-        model_kwargs={"device": "cpu"}, encode_kwargs={"normalize_embeddings": False}
+        model_name="sentence-transformers/all-MiniLM-L6-v2",
+        model_kwargs={"device": "cpu"}, encode_kwargs={"normalize_embeddings": True}
     )
     vectorstore = FAISS.from_documents(docs, embeddings)
     main_placeholder.text("Creating vector store...")
@@ -75,36 +79,46 @@ if process_url_clicked:
         pickle.dump(vectorstore, f)
 
 query = main_placeholder.text_input("Question : ")
+
+# python
 if query:
     if os.path.exists(file_path):
         with open(file_path, "rb") as f:
             vectorstore = pickle.load(f)
-            retriever = vectorstore.as_retriever()
+            retriever = vectorstore.as_retriever(search_kwargs={"k": 5})
 
-            # Define prompt for the LLM
-            prompt = ChatPromptTemplate.from_template(
-                "Answer the question based on the context: {context}\nQuestion: {input}\nAnswer:"
+            prompt = PromptTemplate(
+                template="""
+            Use the following context to answer the question.
+
+            Rules:
+            - Answer in ONE short phrase or sentence
+            - Do NOT add explanations
+            - If the answer is not in the context, say "Not found"
+
+            Context:
+            {context}
+
+            Question:
+            {question}
+
+            Answer:
+            """,
+                input_variables=["context", "question"]
             )
-            # Create document chain and retrieval chain
-            doc_chain = create_stuff_documents_chain(llm=llm, prompt=prompt)
-            chain = create_retrieval_chain(retriever=retriever, combine_docs_chain=doc_chain)
-            langchain.debug = True
-            # Fetch and display retrieved documents in a table
-            docs = retriever.invoke(query)
-            st.header("Documents Retrieved 1")
-            doc_data = [{"Doc ID": f"Doc {i + 1}", "Content": doc.page_content} for i, doc in enumerate(docs)]
-            df = pd.DataFrame(doc_data)
-            st.dataframe(df, column_config={
-                "Doc ID": st.column_config.TextColumn(width="small"),
-                "Content": st.column_config.TextColumn(width="large")
-            }, use_container_width=True)
 
-            # Run chain and display answer
-            result = chain.invoke({"input": query})
+            chain = RetrievalQA.from_chain_type(
+                llm=llm,
+                chain_type="stuff",
+                retriever=retriever,
+                chain_type_kwargs={"prompt": prompt},
+                return_source_documents=True
+            )
+
+            # Call the chain with the 'input' key to satisfy the combine_documents chain
+            result = chain({"query": query})
+            answer = result.get("result")
+            source_docs = result.get("source_documents", [])
 
             st.header("Answer")
-            st.subheader(result['context'][0].page_content)
-
-            # st.header("Extra")
-            # for index in range(len(result['context'])):
-            #     st.subheader(result['context'][index].page_content)
+            st.write(answer)
